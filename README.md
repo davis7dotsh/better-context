@@ -1,5 +1,7 @@
 # The Better Context App
 
+Get up to date information about any technology from it's actual source code.
+
 ```
 bun add -g btca@latest
 ```
@@ -8,9 +10,13 @@ bun add -g btca@latest
 btca ask -t svelte -q "How does the inspect rune work?"
 ```
 
-**out of the box this uses grok code from open code because it's free, but if you have opencode installed you can customize the model and provider in the config file at ~/.config/btca/btca.json**
+### I HIGHLY RECOMMEND CHANGING THE MODEL AND PROVIDER IN THE CONFIG FILE
 
-I recommend haiku 4.5...
+_big pickle is surprisingly good, but there are better models out there_
+
+**Out of the box, this uses big pickle from OpenCode because it's free, but if you have opencode installed you can [customize the model and provider in the config file](https://opencode.ai/docs/models) at ~/.config/btca/btca.json.**
+
+I am mostly using haiku 4.5...
 
 ```json
 {
@@ -40,80 +46,35 @@ I recommend haiku 4.5...
 }
 ```
 
-This is an evolution of: https://github.com/bmdavis419/opencode-hosted-docs-nonsense. Eventually I want to have this be the easiest way to pass in a piece of tech (ie. Svelte) and a question (ie. "How do remote functions work?") and get an up to date answer based on the latest version of the tech using the latest version of the docs/source code...
+The config is also where you can add in your open repos to the app so you can ask questions about them.
 
-**_this is all scratch work right now, I'll remove this once it's more ready to go_**
+The way it works is the "name" is the key for that piece of tech. Say you want to ask questions about svelte, you can do the following:
 
-## Installation
+1. Chat with an opencode instance that has the svelte repo in context:
 
-```sh
-bun i
+```
+btca chat -t svelte
 ```
 
-## Development
+2. Ask a question in the cli (great for agents):
 
-Run CLI commands from the repo root:
-
-```sh
-# Show help
-bun run cli --help
-
-# Ask a question
-bun run cli:ask -t <tech> -q "<question>"
-
-# Start HTTP server
-bun run cli:serve -p <port>
-
-# Hold open instance in background
-bun run cli:open
+```
+btca ask -t svelte -q "How does the inspect rune work?"
 ```
 
-### CLI - Ask a question
+3. Start a web server and send your questions there:
 
-Ask a question about a specific technology directly from the command line:
-
-```sh
-bun run cli:ask -t <tech> -q "<question>"
+```
+btca serve
 ```
 
-Example:
-
-```sh
-bun run cli:ask -t effect -q "How does Effect.tap work?"
-```
-
-### HTTP Server
-
-Start the HTTP server to accept questions via API:
-
-```sh
-bun run cli:serve -p <port>
-```
-
-Example:
-
-```sh
-bun run cli:serve -p 8080
-```
-
-Then make POST requests to `/question`:
-
-```sh
-curl -X POST http://localhost:8080/question \
-  -H "Content-Type: application/json" \
-  -d '{"tech":"effect","question":"How does Effect.tap work?"}'
-```
-
-Response:
+Then hit http://locahost:8080/question as a post request and this body:
 
 ```json
-{ "answer": "..." }
+{
+  "question": "how does the query remote function work in sveltekit?",
+  "tech": "svelte"
+}
 ```
 
-### Help
-
-```sh
-bun run cli --help
-bun run cli:ask --help
-bun run cli:serve --help
-```
+_better docs, agent setup, and more coming soon!_

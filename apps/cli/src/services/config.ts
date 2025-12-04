@@ -53,7 +53,7 @@ const DEFAULT_CONFIG: Config = {
       branch: "canary",
     },
   ],
-  model: "grok-code",
+  model: "big-pickle",
   provider: "opencode",
 };
 
@@ -63,6 +63,9 @@ const OPENCODE_CONFIG = (args: {
 }): OpenCodeConfig => ({
   agent: {
     build: {
+      disable: true,
+    },
+    explore: {
       disable: true,
     },
     general: {
