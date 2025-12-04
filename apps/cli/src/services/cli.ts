@@ -51,7 +51,30 @@ const askCommand = Command.make(
       );
 
       console.log("\n");
-    }).pipe(Effect.provide(programLayer))
+    }).pipe(
+      Effect.catchTags({
+        InvalidProviderError: (e) =>
+          Effect.sync(() => {
+            console.error(`Error: Unknown provider "${e.providerId}"`);
+            console.error(`Available providers: ${e.availableProviders.join(", ")}`);
+            process.exit(1);
+          }),
+        InvalidModelError: (e) =>
+          Effect.sync(() => {
+            console.error(`Error: Unknown model "${e.modelId}" for provider "${e.providerId}"`);
+            console.error(`Available models: ${e.availableModels.join(", ")}`);
+            process.exit(1);
+          }),
+        ProviderNotConnectedError: (e) =>
+          Effect.sync(() => {
+            console.error(`Error: Provider "${e.providerId}" is not connected`);
+            console.error(`Connected providers: ${e.connectedProviders.join(", ")}`);
+            console.error(`Run "opencode auth" to configure provider credentials.`);
+            process.exit(1);
+          }),
+      }),
+      Effect.provide(programLayer)
+    )
 );
 
 // === Open Subcommand ===

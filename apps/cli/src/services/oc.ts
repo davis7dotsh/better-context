@@ -8,6 +8,7 @@ import { spawn } from "bun";
 import { Deferred, Duration, Effect, Stream } from "effect";
 import { ConfigService } from "./config.ts";
 import { OcError } from "../lib/errors.ts";
+import { validateProviderModel } from "./validation.ts";
 
 const spawnOpencodeTui = async (args: {
   config: OpenCodeConfig;
@@ -207,6 +208,9 @@ const ocService = Effect.gen(function* () {
         yield* config.cloneOrUpdateOneRepoLocally(tech);
 
         const { client, server } = yield* getOpencodeInstance({ tech });
+
+        // Validate provider/model before proceeding
+        yield* validateProviderModel(client, rawConfig.provider, rawConfig.model);
 
         const session = yield* Effect.promise(() => client.session.create());
 
