@@ -42,9 +42,11 @@ const DEFAULT_CONFIG: Config = {
         "This is the svelte docs website repo, not the actual svelte repo. Use the docs to answer questions about svelte.",
     },
     {
-      name: "effect",
-      url: "https://github.com/Effect-TS/effect",
+      name: "tailwindcss",
+      url: "https://github.com/tailwindlabs/tailwindcss.com",
       branch: "main",
+      specialNotes:
+        "This is the tailwindcss docs website repo, not the actual tailwindcss repo. Use the docs to answer questions about tailwindcss.",
     },
     {
       name: "nextjs",
