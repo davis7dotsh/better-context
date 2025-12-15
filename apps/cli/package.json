@@ -30,7 +30,8 @@
 	"scripts": {
 		"build": "bun run scripts/build.ts",
 		"build:targets": "bun run scripts/build-binaries.ts",
-		"build:artifacts": "bun run build && bun run build:targets",
+		"setup:platforms": "bun install --cpu=x64 --os=darwin && bun install --cpu=x64 --os=linux && bun install --cpu=arm64 --os=linux && bun install --cpu=x64 --os=win32",
+		"build:artifacts": "bun run setup:platforms && bun run build && bun run build:targets",
 		"prepublishOnly": "bun run build:artifacts",
 		"check": "tsgo --noEmit",
 		"prepare": "effect-language-service patch"
