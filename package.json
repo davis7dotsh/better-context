@@ -33,9 +33,9 @@
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
-		"@typescript/native-preview": "^7.0.0-dev.20251215.1",
+		"@typescript/native-preview": "^7.0.0-dev.20251219.1",
 		"prettier": "^3.7.4",
-		"turbo": "^2.6.3",
+		"turbo": "^2.7.0",
 		"typescript": "^5.9.3"
 	}
 }
