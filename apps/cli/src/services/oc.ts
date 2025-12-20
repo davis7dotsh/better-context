@@ -39,7 +39,7 @@ const ocService = Effect.gen(function* () {
 	const getOpencodeInstance = ({ tech }: { tech: string }) =>
 		Effect.gen(function* () {
 			let portOffset = 0;
-			const maxInstances = 5;
+			const maxInstances = 30;
 			const { ocConfig, repoDir } = yield* config.getOpenCodeConfig({ repoName: tech });
 
 			yield* Effect.sync(() => process.chdir(repoDir));
