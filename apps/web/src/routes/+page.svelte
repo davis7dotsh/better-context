@@ -3,8 +3,7 @@
 	import { getShikiStore } from '$lib/stores/ShikiStore.svelte';
 	import { getThemeStore } from '$lib/stores/ThemeStore.svelte';
 
-	const INSTALL_CMD = `bun add -g btca
-btca`;
+	const INSTALL_CMD = `bun add -g btca opencode-ai && btca`;
 
 	const ASK_CMD = `btca ask -t svelte -q "How do stores work in Svelte 5?"`;
 	const CHAT_CMD = `btca chat -t svelte`;
