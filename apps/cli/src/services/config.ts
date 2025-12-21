@@ -14,7 +14,8 @@ const repoSchema = Schema.Struct({
 	name: Schema.String,
 	url: Schema.String,
 	branch: Schema.String,
-	specialNotes: Schema.String.pipe(Schema.optional)
+	specialNotes: Schema.String.pipe(Schema.optional),
+	searchPath: Schema.String.pipe(Schema.optional)
 });
 
 const configSchema = Schema.Struct({
@@ -118,7 +119,6 @@ const OPENCODE_CONFIG = (args: {
 	specialNotes?: string;
 }): Effect.Effect<OpenCodeConfig, never, Path.Path> =>
 	Effect.gen(function* () {
-		const path = yield* Path.Path;
 		return {
 			provider: BTCA_PRESET_MODELS,
 			agent: {
@@ -270,15 +270,18 @@ const configService = Effect.gen(function* () {
 			}),
 		getOpenCodeConfig: (args: { repoName: string }) =>
 			Effect.gen(function* () {
-				const repo = yield* getRepo({ repoName: args.repoName, config }).pipe(
-					Effect.catchTag('ConfigError', () => Effect.succeed(undefined))
-				);
+				const repo = yield* getRepo({ repoName: args.repoName, config });
+
 				const ocConfig = yield* OPENCODE_CONFIG({
 					repoName: args.repoName,
 					specialNotes: repo?.specialNotes
 				});
 
-				const repoDir = path.join(config.reposDirectory, args.repoName);
+				let repoDir = path.join(config.reposDirectory, args.repoName);
+
+				if (repo.searchPath) {
+					repoDir = path.join(repoDir, repo.searchPath);
+				}
 
 				return {
 					ocConfig,
