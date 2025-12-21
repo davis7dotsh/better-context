@@ -11,24 +11,141 @@ import { Effect, Layer, Schema, Stream } from 'effect';
 import * as readline from 'readline';
 import { OcService, type OcEvent } from './oc.ts';
 import { ConfigService } from './config.ts';
+import { WorkspaceService } from './workspace.ts';
+import { parseQuery, mergeRepos } from '../lib/utils/query.ts';
 
 declare const __VERSION__: string;
 const VERSION: string = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '0.0.0-dev';
 
-const programLayer = Layer.mergeAll(OcService.Default, ConfigService.Default);
+const programLayer = Layer.mergeAll(
+	OcService.Default,
+	ConfigService.Default,
+	WorkspaceService.Default
+);
+
+// === Helper Functions ===
+
+const askConfirmation = (question: string): Effect.Effect<boolean> =>
+	Effect.async<boolean>((resume) => {
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
+
+		rl.question(question, (answer) => {
+			rl.close();
+			const normalized = answer.toLowerCase().trim();
+			resume(Effect.succeed(normalized === 'y' || normalized === 'yes'));
+		});
+	});
+
+const askText = (question: string): Effect.Effect<string> =>
+	Effect.async<string>((resume) => {
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
+
+		rl.question(question, (answer) => {
+			rl.close();
+			resume(Effect.succeed(answer.trim()));
+		});
+	});
+
+/**
+ * Interactive multi-select for repos
+ */
+const selectRepos = (availableRepos: string[]): Effect.Effect<string[]> =>
+	Effect.gen(function* () {
+		console.log('Available repos:');
+		availableRepos.forEach((repo, idx) => {
+			console.log(`  ${idx + 1}. ${repo}`);
+		});
+		console.log('');
+
+		const input = yield* askText(
+			'Enter repo numbers (comma-separated) or names (space-separated): '
+		);
+
+		if (!input) {
+			return [];
+		}
+
+		// Try to parse as numbers first
+		const parts = input.split(/[,\s]+/).filter(Boolean);
+		const selected: string[] = [];
+
+		for (const part of parts) {
+			const num = parseInt(part, 10);
+			if (!isNaN(num) && num >= 1 && num <= availableRepos.length) {
+				selected.push(availableRepos[num - 1]!);
+			} else if (availableRepos.includes(part.toLowerCase())) {
+				selected.push(part.toLowerCase());
+			} else if (availableRepos.includes(part)) {
+				selected.push(part);
+			}
+		}
+
+		return [...new Set(selected)];
+	});
 
 // === Ask Subcommand ===
 const questionOption = Options.text('question').pipe(Options.withAlias('q'));
-const techOption = Options.text('tech').pipe(Options.withAlias('t'));
 const noSyncOption = Options.boolean('no-sync').pipe(Options.withAlias('n'));
+// Support multiple -t flags
+const techOption = Options.text('tech').pipe(Options.withAlias('t'), Options.repeated);
 
 const askCommand = Command.make(
 	'ask',
 	{ question: questionOption, tech: techOption, noSync: noSyncOption },
 	({ question, tech, noSync }) =>
+		// TODO: Handle noSync flag
 		Effect.gen(function* () {
 			const oc = yield* OcService;
-			const eventStream = yield* oc.askQuestion({ tech, question, suppressLogs: false, noSync });
+			const config = yield* ConfigService;
+
+			// Parse @mentions from question
+			const parsed = parseQuery(question);
+
+			// Merge CLI -t flags with @mentions
+			let repos = mergeRepos(tech, parsed.repos);
+
+			// If no repos specified, prompt user
+			if (repos.length === 0) {
+				const availableRepos = yield* config.getRepos();
+				const repoNames = availableRepos.map((r) => r.name);
+
+				if (repoNames.length === 0) {
+					console.error('No repos configured. Run "btca config repos add" first.');
+					process.exit(1);
+				}
+
+				repos = yield* selectRepos(repoNames);
+
+				if (repos.length === 0) {
+					console.error('No repos selected.');
+					process.exit(1);
+				}
+			}
+
+			// Validate repos exist
+			const availableRepos = yield* config.getRepos();
+			const availableNames = new Set(availableRepos.map((r) => r.name));
+			for (const repo of repos) {
+				if (!availableNames.has(repo)) {
+					console.error(`Error: Unknown repo "${repo}"`);
+					console.error(`Available repos: ${[...availableNames].join(', ')}`);
+					process.exit(1);
+				}
+			}
+
+			console.log(`Searching repos: ${repos.join(', ')}\n`);
+
+			const eventStream = yield* oc.askQuestion({
+				repos,
+				question: parsed.query,
+				suppressLogs: false
+			});
 
 			let currentMessageId: string | null = null;
 
@@ -74,6 +191,11 @@ const askCommand = Command.make(
 						console.error(`Connected providers: ${e.connectedProviders.join(', ')}`);
 						console.error(`Run "opencode auth" to configure provider credentials.`);
 						process.exit(1);
+					}),
+				ConfigError: (e) =>
+					Effect.sync(() => {
+						console.error(`Error: ${e.message}`);
+						process.exit(1);
 					})
 			}),
 			Effect.provide(programLayer)
@@ -81,17 +203,53 @@ const askCommand = Command.make(
 );
 
 // === Chat Subcommand ===
-const chatTechOption = Options.text('tech').pipe(Options.withAlias('t'));
+const chatTechOption = Options.text('tech').pipe(Options.withAlias('t'), Options.repeated);
 
 const chatCommand = Command.make('chat', { tech: chatTechOption }, ({ tech }) =>
 	Effect.gen(function* () {
 		const oc = yield* OcService;
-		yield* oc.spawnTui({ tech });
-	}).pipe(Effect.provide(programLayer))
+		const config = yield* ConfigService;
+
+		let repos = [...tech];
+
+		// If no repos specified, prompt user
+		if (repos.length === 0) {
+			const availableRepos = yield* config.getRepos();
+			const repoNames = availableRepos.map((r) => r.name);
+
+			if (repoNames.length === 0) {
+				console.error('No repos configured. Run "btca config repos add" first.');
+				process.exit(1);
+			}
+
+			repos = yield* selectRepos(repoNames);
+
+			if (repos.length === 0) {
+				console.error('No repos selected.');
+				process.exit(1);
+			}
+		}
+
+		yield* oc.spawnTui({ repos });
+	}).pipe(
+		Effect.catchTag('ConfigError', (e) =>
+			Effect.sync(() => {
+				console.error(`Error: ${e.message}`);
+				process.exit(1);
+			})
+		),
+		Effect.provide(programLayer)
+	)
 );
 
 // === Serve Subcommand ===
 const QuestionRequest = Schema.Struct({
+	repos: Schema.Array(Schema.String),
+	question: Schema.String
+});
+
+// Legacy format for backwards compatibility
+const LegacyQuestionRequest = Schema.Struct({
 	tech: Schema.String,
 	question: Schema.String
 });
@@ -104,13 +262,24 @@ const serveCommand = Command.make('serve', { port: portOption }, ({ port }) =>
 			HttpRouter.post(
 				'/question',
 				Effect.gen(function* () {
-					const body = yield* HttpServerRequest.schemaBodyJson(QuestionRequest);
 					const oc = yield* OcService;
 
+					// Try new format first, fall back to legacy
+					const body = yield* HttpServerRequest.schemaBodyJson(QuestionRequest).pipe(
+						Effect.catchAll(() =>
+							HttpServerRequest.schemaBodyJson(LegacyQuestionRequest).pipe(
+								Effect.map((legacy) => ({
+									repos: [legacy.tech] as string[],
+									question: legacy.question
+								}))
+							)
+						)
+					);
+
 					const eventStream = yield* oc.askQuestion({
-						tech: body.tech,
+						repos: [...body.repos],
 						question: body.question,
-						suppressLogs: false
+						suppressLogs: true
 					});
 
 					const chunks: string[] = [];
@@ -283,34 +452,6 @@ const configReposAddCommand = Command.make(
 		)
 );
 
-// config repos clear - clear all downloaded repos
-const askConfirmation = (question: string): Effect.Effect<boolean> =>
-	Effect.async<boolean>((resume) => {
-		const rl = readline.createInterface({
-			input: process.stdin,
-			output: process.stdout
-		});
-
-		rl.question(question, (answer) => {
-			rl.close();
-			const normalized = answer.toLowerCase().trim();
-			resume(Effect.succeed(normalized === 'y' || normalized === 'yes'));
-		});
-	});
-
-const askText = (question: string): Effect.Effect<string> =>
-	Effect.async<string>((resume) => {
-		const rl = readline.createInterface({
-			input: process.stdin,
-			output: process.stdout
-		});
-
-		rl.question(question, (answer) => {
-			rl.close();
-			resume(Effect.succeed(answer.trim()));
-		});
-	});
-
 const configReposRemoveCommand = Command.make(
 	'remove',
 	{ name: repoNameOption.pipe(Options.optional) },
@@ -435,6 +576,89 @@ const configReposCommand = Command.make('repos', {}, () =>
 	])
 );
 
+// === Workspace Subcommands ===
+
+const configWorkspacesListCommand = Command.make('list', {}, () =>
+	Effect.gen(function* () {
+		const workspace = yield* WorkspaceService;
+		const workspaces = yield* workspace.listWorkspaces();
+
+		if (workspaces.length === 0) {
+			console.log('No workspaces found.');
+			return;
+		}
+
+		console.log('Workspaces:\n');
+		for (const ws of workspaces) {
+			console.log(`  ${ws}`);
+		}
+	}).pipe(
+		Effect.catchTag('ConfigError', (e) =>
+			Effect.sync(() => {
+				console.error(`Error: ${e.message}`);
+				process.exit(1);
+			})
+		),
+		Effect.provide(programLayer)
+	)
+);
+
+const workspaceKeyOption = Options.text('key').pipe(Options.withAlias('k'), Options.optional);
+
+const configWorkspacesClearCommand = Command.make('clear', { key: workspaceKeyOption }, ({ key }) =>
+	Effect.gen(function* () {
+		const workspace = yield* WorkspaceService;
+
+		if (key._tag === 'Some') {
+			yield* workspace.clearWorkspace(key.value);
+			console.log(`Cleared workspace: ${key.value}`);
+		} else {
+			const workspaces = yield* workspace.listWorkspaces();
+
+			if (workspaces.length === 0) {
+				console.log('No workspaces to clear.');
+				return;
+			}
+
+			console.log('The following workspaces will be deleted:\n');
+			for (const ws of workspaces) {
+				console.log(`  ${ws}`);
+			}
+			console.log();
+
+			const confirmed = yield* askConfirmation(
+				'Are you sure you want to delete all workspaces? (y/N): '
+			);
+
+			if (!confirmed) {
+				console.log('Aborted.');
+				return;
+			}
+
+			yield* workspace.clearWorkspaces();
+			console.log('All workspaces cleared.');
+		}
+	}).pipe(
+		Effect.catchTag('ConfigError', (e) =>
+			Effect.sync(() => {
+				console.error(`Error: ${e.message}`);
+				process.exit(1);
+			})
+		),
+		Effect.provide(programLayer)
+	)
+);
+
+const configWorkspacesCommand = Command.make('workspaces', {}, () =>
+	Effect.sync(() => {
+		console.log('Usage: btca config workspaces <command>');
+		console.log('');
+		console.log('Commands:');
+		console.log('  list    List all workspaces');
+		console.log('  clear   Clear workspaces (use --key to clear specific workspace)');
+	})
+).pipe(Command.withSubcommands([configWorkspacesListCommand, configWorkspacesClearCommand]));
+
 // config - parent command
 const configCommand = Command.make('config', {}, () =>
 	Effect.gen(function* () {
@@ -446,10 +670,11 @@ const configCommand = Command.make('config', {}, () =>
 		console.log('Usage: btca config <command>');
 		console.log('');
 		console.log('Commands:');
-		console.log('  model   View or set the model and provider');
-		console.log('  repos   Manage configured repos');
+		console.log('  model       View or set the model and provider');
+		console.log('  repos       Manage configured repos');
+		console.log('  workspaces  Manage workspaces');
 	}).pipe(Effect.provide(programLayer))
-).pipe(Command.withSubcommands([configModelCommand, configReposCommand]));
+).pipe(Command.withSubcommands([configModelCommand, configReposCommand, configWorkspacesCommand]));
 
 // === Main Command ===
 const versionOption = Options.boolean('version').pipe(

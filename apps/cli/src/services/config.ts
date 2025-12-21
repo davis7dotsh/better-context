@@ -1,11 +1,13 @@
 import type { Config as OpenCodeConfig, ProviderConfig } from '@opencode-ai/sdk';
 import { FileSystem, Path } from '@effect/platform';
 import { Effect, Schema } from 'effect';
-import { getDocsAgentPrompt } from '../lib/prompts.ts';
+import { getDocsAgentPrompt, getMultiRepoDocsAgentPrompt } from '../lib/prompts.ts';
 import { ConfigError } from '../lib/errors.ts';
 import { cloneRepo, pullRepo } from '../lib/utils/git.ts';
 import { directoryExists, expandHome } from '../lib/utils/files.ts';
 import { BLESSED_MODELS } from '@btca/shared';
+
+const DEFAULT_WORKSPACES_DIRECTORY = '~/.local/share/btca/workspaces';
 
 const CONFIG_DIRECTORY = '~/.config/btca';
 const CONFIG_FILENAME = 'btca.json';
@@ -18,8 +20,10 @@ const repoSchema = Schema.Struct({
 	searchPath: Schema.String.pipe(Schema.optional)
 });
 
-const configSchema = Schema.Struct({
+// Schema for stored config (workspacesDirectory is optional for backwards compat)
+const storedConfigSchema = Schema.Struct({
 	reposDirectory: Schema.String,
+	workspacesDirectory: Schema.String.pipe(Schema.optional),
 	port: Schema.Number,
 	maxInstances: Schema.Number,
 	repos: Schema.Array(repoSchema),
@@ -27,11 +31,22 @@ const configSchema = Schema.Struct({
 	provider: Schema.String
 });
 
-type Config = typeof configSchema.Type;
+// Internal config type always has workspacesDirectory resolved
+interface Config {
+	reposDirectory: string;
+	workspacesDirectory: string;
+	port: number;
+	maxInstances: number;
+	repos: Repo[];
+	model: string;
+	provider: string;
+}
+
 type Repo = typeof repoSchema.Type;
 
 const DEFAULT_CONFIG: Config = {
 	reposDirectory: '~/.local/share/btca/repos',
+	workspacesDirectory: DEFAULT_WORKSPACES_DIRECTORY,
 	port: 3420,
 	maxInstances: 5,
 	repos: [
@@ -76,9 +91,18 @@ const writeConfig = (config: Config) =>
 		const configPath = path.join(configDir, CONFIG_FILENAME);
 
 		// Collapse expanded paths back to tilde for storage
-		const configToWrite: Config = {
-			...config,
-			reposDirectory: collapseHome(config.reposDirectory)
+		// Only include workspacesDirectory if it's not the default
+		const collapsedWorkspacesDir = collapseHome(config.workspacesDirectory);
+		const configToWrite = {
+			reposDirectory: collapseHome(config.reposDirectory),
+			...(collapsedWorkspacesDir !== DEFAULT_WORKSPACES_DIRECTORY && {
+				workspacesDirectory: collapsedWorkspacesDir
+			}),
+			port: config.port,
+			maxInstances: config.maxInstances,
+			repos: config.repos,
+			model: config.model,
+			provider: config.provider
 		};
 
 		yield* fs.writeFileString(configPath, JSON.stringify(configToWrite, null, 2)).pipe(
@@ -92,7 +116,7 @@ const writeConfig = (config: Config) =>
 			)
 		);
 
-		return configToWrite;
+		return config;
 	});
 
 // models setup the way I like them, the ones I would recommend for use are:
@@ -206,10 +230,12 @@ const onStartLoadConfig = Effect.gen(function* () {
 		);
 		yield* Effect.log(`Default config created at ${configPath}`);
 		const reposDir = yield* expandHome(DEFAULT_CONFIG.reposDirectory);
-		const config = {
+		const workspacesDir = yield* expandHome(DEFAULT_CONFIG.workspacesDirectory);
+		const config: Config = {
 			...DEFAULT_CONFIG,
-			reposDirectory: reposDir
-		} satisfies Config;
+			reposDirectory: reposDir,
+			workspacesDirectory: workspacesDir
+		};
 		return {
 			config,
 			configPath
@@ -227,14 +253,23 @@ const onStartLoadConfig = Effect.gen(function* () {
 		);
 		const parsed = JSON.parse(content);
 		return yield* Effect.succeed(parsed).pipe(
-			Effect.flatMap(Schema.decode(configSchema)),
+			Effect.flatMap(Schema.decode(storedConfigSchema)),
 			Effect.flatMap((loadedConfig) =>
 				Effect.gen(function* () {
 					const reposDir = yield* expandHome(loadedConfig.reposDirectory);
-					const config = {
-						...loadedConfig,
-						reposDirectory: reposDir
-					} satisfies Config;
+					// Use stored workspacesDirectory or default
+					const workspacesDir = yield* expandHome(
+						loadedConfig.workspacesDirectory ?? DEFAULT_WORKSPACES_DIRECTORY
+					);
+					const config: Config = {
+						reposDirectory: reposDir,
+						workspacesDirectory: workspacesDir,
+						port: loadedConfig.port,
+						maxInstances: loadedConfig.maxInstances,
+						repos: [...loadedConfig.repos],
+						model: loadedConfig.model,
+						provider: loadedConfig.provider
+					};
 					return {
 						config,
 						configPath
@@ -334,7 +369,57 @@ const configService = Effect.gen(function* () {
 				config = { ...config, repos: config.repos.filter((r) => r.name !== repoName) };
 				yield* writeConfig(config);
 			}),
-		getReposDirectory: () => Effect.succeed(config.reposDirectory)
+		getReposDirectory: () => Effect.succeed(config.reposDirectory),
+		getWorkspacesDirectory: () => Effect.succeed(config.workspacesDirectory),
+		getRepo: (repoName: string) => getRepo({ repoName, config }),
+		/**
+		 * Get OpenCode config for a multi-repo workspace
+		 */
+		getWorkspaceOpenCodeConfig: (args: {
+			repos: Array<{ name: string; relativePath: string; specialNotes?: string }>;
+		}) =>
+			Effect.gen(function* () {
+				const prompt = getMultiRepoDocsAgentPrompt({ repos: args.repos });
+
+				const ocConfig: OpenCodeConfig = {
+					provider: BTCA_PRESET_MODELS,
+					agent: {
+						build: { disable: true },
+						explore: { disable: true },
+						general: { disable: true },
+						plan: { disable: true },
+						docs: {
+							prompt,
+							disable: false,
+							description:
+								'Get answers about libraries and frameworks by searching their source code',
+							permission: {
+								webfetch: 'deny',
+								edit: 'deny',
+								bash: 'deny',
+								external_directory: 'deny',
+								doom_loop: 'deny'
+							},
+							mode: 'primary',
+							tools: {
+								write: false,
+								bash: false,
+								delete: false,
+								read: true,
+								grep: true,
+								glob: true,
+								list: true,
+								path: false,
+								todowrite: false,
+								todoread: false,
+								websearch: false
+							}
+						}
+					}
+				};
+
+				return ocConfig;
+			})
 	};
 });
 

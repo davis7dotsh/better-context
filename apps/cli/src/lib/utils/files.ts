@@ -47,3 +47,39 @@ export const ensureDirectory = (dir: string) =>
 			)
 		)
 	);
+
+export const fileExists = (filePath: string) =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const exists = yield* fs.exists(filePath);
+		if (!exists) return false;
+		const stat = yield* fs.stat(filePath);
+		return stat.type === 'File';
+	}).pipe(
+		Effect.catchAll((error) =>
+			Effect.fail(
+				new ConfigError({
+					message: 'Failed to check file',
+					cause: error
+				})
+			)
+		)
+	);
+
+export const removeDirectory = (dir: string) =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const exists = yield* fs.exists(dir);
+		if (exists) {
+			yield* fs.remove(dir, { recursive: true });
+		}
+	}).pipe(
+		Effect.catchAll((error) =>
+			Effect.fail(
+				new ConfigError({
+					message: 'Failed to remove directory',
+					cause: error
+				})
+			)
+		)
+	);

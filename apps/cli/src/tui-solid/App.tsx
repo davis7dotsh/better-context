@@ -91,7 +91,7 @@ const App: Component = () => {
 		let currentMessageId: string | null = null;
 
 		try {
-			await services.askQuestion(targetRepo.name, mention.question, (event) => {
+			await services.askQuestion([targetRepo.name], mention.question, (event) => {
 				if (
 					event.type === 'message.part.updated' &&
 					'part' in event.properties &&
