@@ -58,7 +58,9 @@ export const isWorktree = (dir: string) =>
 	Effect.gen(function* () {
 		const gitPath = `${dir}/.git`;
 		// Worktrees have a .git file, regular repos have a .git directory
-		return yield* fileExists(gitPath);
+		const isFile = yield* fileExists(gitPath);
+		const isDir = yield* directoryExists(gitPath);
+		return isFile && !isDir;
 	});
 
 /**
