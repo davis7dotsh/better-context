@@ -313,3 +313,52 @@ Q3: "show me an example combining both"
 ~/.config/btca/
 └── config.json             # User configuration
 ```
+
+---
+
+## Future: Cloud Sandboxes
+
+The architecture is designed to support cloud sandboxes (e.g., Daytona) in the future.
+
+### Session = Sandbox Model
+
+Each thread maps 1:1 to a cloud sandbox:
+
+```
+Thread 1 → Sandbox A
+├── User asks about @svelte     → Clone svelte (slow first time)
+├── User asks follow-up         → Sandbox already has svelte (instant)
+├── User adds @effect           → Clone effect, svelte cached
+├── Sandbox hibernates after inactivity
+
+Thread 1 resumed later:
+├── Wake sandbox A              → Resources still cached
+├── Continue conversation       → Fast
+```
+
+**Benefits:**
+
+- First question with new resources is slow, but follow-ups are fast
+- Resources accumulate within the sandbox (no re-cloning)
+- Natural mapping: Thread ↔ Sandbox is 1:1
+- Sandbox can hibernate to reduce costs, wake on resume
+
+**Thread schema extension for cloud:**
+
+```typescript
+interface Thread {
+	// ... existing fields
+	sandbox?: {
+		id: string; // Daytona workspace ID
+		status: 'running' | 'hibernated' | 'terminated';
+		cachedResources: string[]; // What's already cloned
+		lastActiveAt: Date;
+	};
+}
+```
+
+**Future optimizations:**
+
+- Warm pool of sandboxes with popular resource combinations
+- Route new threads to best-match sandbox
+- Pre-warm based on usage patterns

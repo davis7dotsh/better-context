@@ -1,6 +1,11 @@
 import { Effect } from 'effect';
-import { ConfigError } from '../errors.ts';
+import { TaggedError } from 'effect/Data';
 import { directoryExists, fileExists, removeDirectory } from './files.ts';
+
+export class GitError extends TaggedError('GitError')<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
 
 export const cloneRepo = (args: {
 	repoDir: string;
@@ -20,7 +25,7 @@ export const cloneRepo = (args: {
 				throw new Error(`git clone failed with exit code ${exitCode}`);
 			}
 		},
-		catch: (error) => new ConfigError({ message: 'Failed to clone repo', cause: error })
+		catch: (error) => new GitError({ message: 'Failed to clone repo', cause: error })
 	});
 
 export const pullRepo = (args: { repoDir: string; branch: string; quiet?: boolean }) =>
@@ -47,7 +52,7 @@ export const pullRepo = (args: { repoDir: string; branch: string; quiet?: boolea
 				throw new Error(`git reset failed with exit code ${resetExitCode}`);
 			}
 		},
-		catch: (error) => new ConfigError({ message: 'Failed to pull repo', cause: error })
+		catch: (error) => new GitError({ message: 'Failed to pull repo', cause: error })
 	});
 
 /**
@@ -99,7 +104,7 @@ export const createWorktree = (args: { repoDir: string; targetDir: string; ref?:
 				throw new Error(`git worktree add failed: ${stderr}`);
 			}
 		},
-		catch: (error) => new ConfigError({ message: 'Failed to create worktree', cause: error })
+		catch: (error) => new GitError({ message: 'Failed to create worktree', cause: error })
 	});
 
 /**
@@ -123,7 +128,7 @@ export const removeWorktree = (args: { repoDir: string; worktreeDir: string }) =
 				await proc.exited;
 				// Ignore exit code - we'll clean up manually if needed
 			},
-			catch: () => new ConfigError({ message: 'git worktree remove failed' })
+			catch: () => new GitError({ message: 'git worktree remove failed' })
 		}).pipe(Effect.catchAll(() => Effect.void));
 
 		// Also clean up the directory if it still exists
@@ -139,7 +144,7 @@ export const removeWorktree = (args: { repoDir: string; worktreeDir: string }) =
 				});
 				await proc.exited;
 			},
-			catch: () => new ConfigError({ message: 'git worktree prune failed' })
+			catch: () => new GitError({ message: 'git worktree prune failed' })
 		}).pipe(Effect.catchAll(() => Effect.void));
 	});
 
@@ -172,5 +177,5 @@ export const listWorktrees = (repoDir: string) =>
 
 			return worktrees;
 		},
-		catch: (error) => new ConfigError({ message: 'Failed to list worktrees', cause: error })
+		catch: (error) => new GitError({ message: 'Failed to list worktrees', cause: error })
 	});
