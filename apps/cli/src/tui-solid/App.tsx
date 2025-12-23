@@ -8,19 +8,23 @@ import { useAppContext } from './context/app-context.tsx';
 import { services } from './services.ts';
 import { copyToClipboard } from './clipboard.ts';
 
-const parseAtMention = (
-	input: string
-): { repoQuery: string; question: string; hasSpace: boolean } | null => {
-	if (!input.startsWith('@')) return null;
-	const spaceIndex = input.indexOf(' ');
-	if (spaceIndex === -1) {
-		return { repoQuery: input.slice(1), question: '', hasSpace: false };
+/**
+ * Parse all @mentions from input text.
+ * Returns the list of mentioned repos and the question with mentions stripped.
+ */
+const parseAllMentions = (input: string): { repos: string[]; question: string } => {
+	const mentionRegex = /@(\w+)/g;
+	const repos: string[] = [];
+	let match;
+
+	while ((match = mentionRegex.exec(input)) !== null) {
+		repos.push(match[1]!);
 	}
-	return {
-		repoQuery: input.slice(1, spaceIndex),
-		question: input.slice(spaceIndex + 1),
-		hasSpace: true
-	};
+
+	// Remove @mentions from the question
+	const question = input.replace(mentionRegex, '').trim().replace(/\s+/g, ' ');
+
+	return { repos: [...new Set(repos)], question };
 };
 
 const AppWrapper: Component<ParentProps> = (props) => {
@@ -56,22 +60,33 @@ const App: Component = () => {
 			return;
 		}
 
-		const mention = parseAtMention(inputText);
-		if (!mention || !mention.question.trim()) {
+		const parsed = parseAllMentions(inputText);
+		if (parsed.repos.length === 0 || !parsed.question.trim()) {
 			appState.addMessage({
 				role: 'system',
-				content: 'Use @reponame followed by your question. Example: @daytona How do I...?'
+				content: 'Use @reponame followed by your question. Example: @svelte @effect How do I...?'
 			});
 			return;
 		}
 
-		const targetRepo = appState
-			.repos()
-			.find((r) => r.name.toLowerCase() === mention.repoQuery.toLowerCase());
-		if (!targetRepo) {
+		// Validate all mentioned repos exist
+		const availableRepos = appState.repos();
+		const validRepos: string[] = [];
+		const invalidRepos: string[] = [];
+
+		for (const repoName of parsed.repos) {
+			const found = availableRepos.find((r) => r.name.toLowerCase() === repoName.toLowerCase());
+			if (found) {
+				validRepos.push(found.name);
+			} else {
+				invalidRepos.push(repoName);
+			}
+		}
+
+		if (invalidRepos.length > 0) {
 			appState.addMessage({
 				role: 'system',
-				content: `Repo "${mention.repoQuery}" not found. Use /add to add a repo.`
+				content: `Repo(s) not found: ${invalidRepos.join(', ')}. Use /add to add a repo.`
 			});
 			return;
 		}
@@ -82,7 +97,8 @@ const App: Component = () => {
 			content: appState.inputState()
 		});
 		// Add initial assistant message that will be updated during streaming
-		appState.addMessage({ role: 'assistant', content: 'Syncing repo...' });
+		const repoLabel = validRepos.length === 1 ? 'repo' : 'repos';
+		appState.addMessage({ role: 'assistant', content: `Syncing ${repoLabel}...` });
 		appState.setInputState([]);
 		appState.setIsLoading(true);
 		appState.setMode('loading');
@@ -91,7 +107,7 @@ const App: Component = () => {
 		let currentMessageId: string | null = null;
 
 		try {
-			await services.askQuestion(targetRepo.name, mention.question, (event) => {
+			await services.askQuestion(validRepos, parsed.question, (event) => {
 				if (
 					event.type === 'message.part.updated' &&
 					'part' in event.properties &&
