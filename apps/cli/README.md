@@ -141,3 +141,12 @@ Configuration is stored at `~/.config/btca/btca.json`. The config file includes:
 - `repos` - Array of configured repositories
 - `model` - AI model to use
 - `provider` - AI provider to use
+
+# the core primitives of the better context app
+
+- "resource" - an instance of context that can be used to answer questions. Can be a git repo, a local directory, a url, or an npm package
+- "collection" - a group of resources in one place (directory) that an agent can use to answer questions
+- "agent" - an instance of open code (perhaps will be custom later) that has a collection loaded into it
+- "question" - a one off question for an agent to answer. this contains the question, the collection, and the answer
+- "thread" - a conversation between a user and an agent. this contains the collection and the back and forth between the user and agent
+- "config" - the application config. where collections go, where agents go, the selected model and provider, etc.

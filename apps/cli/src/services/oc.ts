@@ -379,7 +379,7 @@ const ocService = Effect.gen(function* () {
 			Effect.gen(function* () {
 				const { question, tech, suppressLogs } = args;
 
-				yield* config.cloneOrUpdateOneRepoLocally(tech, { suppressLogs, noSync: args.noSync });
+				yield* config.cloneOrUpdateOneRepoLocally(tech, { suppressLogs });
 
 				const { client, server } = yield* getOpencodeInstance({ tech });
 
