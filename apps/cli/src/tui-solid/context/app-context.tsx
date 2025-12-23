@@ -66,8 +66,6 @@ type AppState = {
 	setModelStep: (step: ModelConfigStep) => void;
 	modelValues: Accessor<{ provider: string; model: string }>;
 	setModelValues: (values: { provider: string; model: string }) => void;
-	modelInput: Accessor<string>;
-	setModelInput: (input: string) => void;
 
 	// Remove repo state
 	removeRepoName: Accessor<string>;
@@ -130,7 +128,6 @@ export const AppProvider: Component<ParentProps> = (props) => {
 	// Model config wizard
 	const [modelStep, setModelStep] = createSignal<ModelConfigStep>('provider');
 	const [modelValues, setModelValues] = createSignal({ provider: '', model: '' });
-	const [modelInput, setModelInput] = createSignal('');
 
 	// Remove repo
 	const [removeRepoName, setRemoveRepoName] = createSignal('');
@@ -228,8 +225,6 @@ export const AppProvider: Component<ParentProps> = (props) => {
 		setModelStep,
 		modelValues,
 		setModelValues,
-		modelInput,
-		setModelInput,
 
 		// Remove repo
 		removeRepoName,

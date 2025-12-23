@@ -144,7 +144,6 @@ const App: Component = () => {
 		appState.setMode('chat');
 		appState.setInputState([]);
 		appState.setWizardInput('');
-		appState.setModelInput('');
 		appState.setRemoveRepoName('');
 	};
 

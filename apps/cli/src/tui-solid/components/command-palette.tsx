@@ -43,7 +43,6 @@ export const CommandPalette: Component = () => {
 				provider: appState.selectedProvider(),
 				model: appState.selectedModel()
 			});
-			appState.setModelInput(appState.selectedProvider());
 			appState.setMode('config-model');
 		} else if (command.mode === 'select-blessed-model') {
 			appState.setMode('select-blessed-model');

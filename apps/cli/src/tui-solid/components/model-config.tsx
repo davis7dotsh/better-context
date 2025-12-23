@@ -1,6 +1,6 @@
-import { createEffect, Show, type Component } from 'solid-js';
+import { createEffect, createSignal, Show, type Component } from 'solid-js';
 import { colors } from '../theme.ts';
-import { useKeyboard } from '@opentui/solid';
+import { useKeyboard, usePaste } from '@opentui/solid';
 import { useAppContext, type ModelConfigStep } from '../context/app-context.tsx';
 import { services } from '../services.ts';
 
@@ -28,6 +28,8 @@ const STEP_INFO: Record<ModelConfigStep, { title: string; hint: string; placehol
 export const ModelConfig: Component = () => {
 	const appState = useAppContext();
 
+	const [modelInput, setModelInput] = createSignal('');
+
 	const info = () => STEP_INFO[appState.modelStep()];
 
 	// Reset justOpened flag when mode changes to config-model
@@ -41,17 +43,28 @@ export const ModelConfig: Component = () => {
 		}
 	});
 
+	usePaste(({ text }) => {
+		console.log('paste', appState.modelStep());
+		if (appState.mode() !== 'config-model') return;
+
+		const step = appState.modelStep();
+
+		if (step === 'provider' || step === 'model') {
+			setModelInput(text.trim());
+		}
+	});
+
 	const handleSubmit = async () => {
 		// Skip if this is the same keypress that opened the modal
 		if (justOpened) return;
 		const step = appState.modelStep();
-		const value = appState.modelInput().trim();
+		const value = modelInput().trim();
 
 		if (step === 'provider') {
 			if (!value) return;
 			appState.setModelValues({ ...appState.modelValues(), provider: value });
 			appState.setModelStep('model');
-			appState.setModelInput(appState.selectedModel());
+			setModelInput(appState.selectedModel());
 		} else if (step === 'model') {
 			if (!value) return;
 			appState.setModelValues({ ...appState.modelValues(), model: value });
@@ -78,7 +91,7 @@ export const ModelConfig: Component = () => {
 		if (appState.mode() !== 'config-model') return;
 		if (key.name === 'escape') {
 			appState.setMode('chat');
-			appState.setModelInput('');
+			setModelInput('');
 		} else if (key.name === 'return' && appState.modelStep() === 'confirm') {
 			handleSubmit();
 		}
@@ -111,8 +124,8 @@ export const ModelConfig: Component = () => {
 							placeholder={info().placeholder}
 							placeholderColor={colors.textSubtle}
 							textColor={colors.text}
-							value={appState.modelInput()}
-							onInput={appState.setModelInput}
+							value={modelInput()}
+							onInput={setModelInput}
 							onSubmit={handleSubmit}
 							focused
 							style={{ width: '100%' }}
