@@ -40,6 +40,17 @@ export const AddRepoWizard: Component = () => {
 
 	const info = () => STEP_INFO[appState.wizardStep()];
 
+	useKeyboard((key) => {
+		if (key.name === 'c' && key.ctrl) {
+			const mode = appState.mode();
+			if (mode !== 'add-repo') return;
+			if (wizardInput().length === 0) {
+				appState.setMode('chat');
+			} else {
+				setWizardInput('');
+			}
+		}
+	});
 	usePaste(({ text }) => {
 		setWizardInput(text);
 	});

@@ -162,10 +162,13 @@ const App: Component = () => {
 
 		// Ctrl+C handling
 		if (key.name === 'c' && key.ctrl) {
-			if (appState.inputState().length > 0) {
-				appState.setInputState([]);
-			} else {
-				renderer.destroy();
+			const mode = appState.mode();
+			if (mode === 'chat' || mode === 'loading') {
+				if (appState.inputState().length > 0) {
+					appState.setInputState([]);
+				} else {
+					renderer.destroy();
+				}
 			}
 			return;
 		}

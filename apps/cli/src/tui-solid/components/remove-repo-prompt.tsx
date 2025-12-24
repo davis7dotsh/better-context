@@ -13,6 +13,18 @@ export const RemoveRepoPrompt: Component = () => {
 
 	const maxVisible = 8;
 
+	useKeyboard((key) => {
+		if (key.name === 'c' && key.ctrl) {
+			const mode = appState.mode();
+			if (mode !== 'remove-repo') return;
+			if (removeRepoName().length === 0) {
+				appState.setMode('chat');
+			} else {
+				setRemoveRepoName('');
+			}
+		}
+	});
+
 	const filteredRepos = createMemo(() => {
 		const repos = appState.repos();
 		const filter = filterText().toLowerCase();

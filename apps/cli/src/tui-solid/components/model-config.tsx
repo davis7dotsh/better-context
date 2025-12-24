@@ -32,6 +32,18 @@ export const ModelConfig: Component = () => {
 
 	const info = () => STEP_INFO[appState.modelStep()];
 
+	useKeyboard((key) => {
+		if (key.name === 'c' && key.ctrl) {
+			const mode = appState.mode();
+			if (mode !== 'config-model') return;
+			if (modelInput().length === 0) {
+				appState.setMode('chat');
+			} else {
+				setModelInput('');
+			}
+		}
+	});
+
 	// Reset justOpened flag when mode changes to config-model
 	createEffect(() => {
 		if (appState.mode() === 'config-model') {
@@ -44,7 +56,6 @@ export const ModelConfig: Component = () => {
 	});
 
 	usePaste(({ text }) => {
-		console.log('paste', appState.modelStep());
 		if (appState.mode() !== 'config-model') return;
 
 		const step = appState.modelStep();
