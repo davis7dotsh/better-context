@@ -12,7 +12,7 @@ import { TaggedError } from 'effect/Data';
 import type { CollectionInfo } from '../collection/types.ts';
 import type { ResourceInfo } from '../resource/types.ts';
 import type { Thread } from '../thread/types.ts';
-import type { SessionState, AgentMetadata } from './types.ts';
+import type { SessionState, AgentMetadata, BtcaChunk } from './types.ts';
 import { getMultiRepoDocsAgentPrompt, type RepoInfo } from '../../lib/prompts.ts';
 
 export class AgentError extends TaggedError('AgentError')<{
@@ -240,6 +240,80 @@ export const extractMetadataFromEvents = (events: OcEvent[]): AgentMetadata => {
 		searchesPerformed: [...new Set(searchesPerformed)],
 		tokenUsage: { input: inputTokens, output: outputTokens },
 		durationMs: 0 // Will be set by caller
+	};
+};
+
+export type ChunkUpdate =
+	| { type: 'add'; chunk: BtcaChunk }
+	| { type: 'update'; id: string; chunk: Partial<BtcaChunk> };
+
+export const streamToChunks = (eventStream: Stream.Stream<OcEvent, AgentError>) => {
+	const chunks = new Map<string, BtcaChunk>();
+	const allEvents: OcEvent[] = [];
+
+	const chunkStream = eventStream.pipe(
+		Stream.mapConcat((event): ChunkUpdate[] => {
+			allEvents.push(event);
+
+			if (event.type !== 'message.part.updated') return [];
+
+			const part = event.properties.part;
+			const partId = part.id;
+
+			switch (part.type) {
+				case 'text': {
+					const existing = chunks.get(partId);
+					if (existing && existing.type === 'text') {
+						existing.text = part.text;
+						return [{ type: 'update', id: partId, chunk: { text: part.text } }];
+					}
+					const chunk: BtcaChunk = { type: 'text', id: partId, text: part.text };
+					chunks.set(partId, chunk);
+					return [{ type: 'add', chunk }];
+				}
+				case 'reasoning': {
+					const existing = chunks.get(partId);
+					if (existing && existing.type === 'reasoning') {
+						existing.text = part.text;
+						return [{ type: 'update', id: partId, chunk: { text: part.text } }];
+					}
+					const chunk: BtcaChunk = { type: 'reasoning', id: partId, text: part.text };
+					chunks.set(partId, chunk);
+					return [{ type: 'add', chunk }];
+				}
+				case 'tool': {
+					const existing = chunks.get(partId);
+					const status = part.state.status;
+					const state =
+						status === 'pending' ? 'pending' : status === 'running' ? 'running' : 'completed';
+					if (existing && existing.type === 'tool') {
+						existing.state = state;
+						return [{ type: 'update', id: partId, chunk: { state } }];
+					}
+					const chunk: BtcaChunk = { type: 'tool', id: partId, toolName: part.tool, state };
+					chunks.set(partId, chunk);
+					return [{ type: 'add', chunk }];
+				}
+				case 'file': {
+					if (chunks.has(partId)) return [];
+					const chunk: BtcaChunk = {
+						type: 'file',
+						id: partId,
+						filePath: part.filename ?? part.url
+					};
+					chunks.set(partId, chunk);
+					return [{ type: 'add', chunk }];
+				}
+				default:
+					return [];
+			}
+		})
+	);
+
+	return {
+		stream: chunkStream,
+		getChunks: () => [...chunks.values()],
+		getEvents: () => allEvents
 	};
 };
 

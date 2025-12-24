@@ -3,7 +3,7 @@ import type { Command } from './types.ts';
 export const COMMANDS: Command[] = [
 	{
 		name: 'add',
-		description: 'Add a new repo (wizard)',
+		description: 'Add a new resource',
 		mode: 'add-repo'
 	},
 	{

@@ -90,7 +90,7 @@ export type { AgentService } from './agent/service.ts';
 export type { ResourceDefinition, ResourceInfo } from './resource/types.ts';
 export type { CollectionInfo } from './collection/types.ts';
 export type { Thread, Question, QuestionMetadata, ThreadSummary } from './thread/types.ts';
-export type { SessionState, AgentMetadata } from './agent/types.ts';
+export type { SessionState, AgentMetadata, BtcaChunk } from './agent/types.ts';
 
 // Re-export errors
 export { ConfigError } from './config/service.ts';
@@ -105,6 +105,11 @@ export {
 } from './agent/service.ts';
 
 // Re-export utilities
-export { buildThreadContextPrompt, extractMetadataFromEvents } from './agent/service.ts';
+export {
+	buildThreadContextPrompt,
+	extractMetadataFromEvents,
+	streamToChunks,
+	type ChunkUpdate
+} from './agent/service.ts';
 export { getAccumulatedResources, getThreadResources } from './thread/types.ts';
 export { getCollectionKey } from './collection/types.ts';

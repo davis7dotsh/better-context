@@ -16,6 +16,13 @@ export const BLESSED_MODELS: BlessedModel[] = [
 	},
 	{
 		provider: 'openrouter',
+		model: 'minimax/minimax-m2.1',
+		description: 'Minimax M2.1: very fast, very cheap.',
+		providerSetupUrl: 'https://opencode.ai/docs/providers/#openrouter',
+		isDefault: false
+	},
+	{
+		provider: 'openrouter',
 		model: 'btca-glm-4-6',
 		description: 'GLM 4.6 on Cerebras through OpenRouter. Very fast, very good.',
 		providerSetupUrl: 'https://opencode.ai/docs/providers/#openrouter',

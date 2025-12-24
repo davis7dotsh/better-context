@@ -5,11 +5,11 @@ import * as readline from 'readline';
 import {
 	initializeCoreServices,
 	getResourceInfos,
-	extractMetadataFromEvents
+	extractMetadataFromEvents,
+	streamToChunks
 } from '../core/index.ts';
 import type { ResourceDefinition, GitResource, LocalResource } from '../core/resource/types.ts';
 import { isGitResource } from '../core/resource/types.ts';
-import type { OcEvent } from '../core/agent/types.ts';
 
 declare const __VERSION__: string;
 const VERSION: string = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '0.0.0-dev';
@@ -167,39 +167,48 @@ const askCommand = Command.make(
 				question: parsed.query
 			});
 
-			let currentMessageId: string | null = null;
 			let fullAnswer = '';
-			const allEvents: OcEvent[] = [];
+			let fullReasoning = '';
 			const startTime = Date.now();
+			const { stream: chunkStream, getChunks, getEvents } = streamToChunks(eventStream);
 
-			yield* eventStream.pipe(
-				Stream.runForEach((event) =>
+			yield* chunkStream.pipe(
+				Stream.runForEach((update) =>
 					Effect.sync(() => {
-						allEvents.push(event);
-
-						switch (event.type) {
-							case 'message.part.updated':
-								if (event.properties.part.type === 'text') {
-									const delta = event.properties.delta ?? '';
-									if (currentMessageId === event.properties.part.messageID) {
-										process.stdout.write(delta);
-										fullAnswer += delta;
-									} else {
-										currentMessageId = event.properties.part.messageID;
-										const text = event.properties.part.text;
-										process.stdout.write('\n\n' + text);
-										fullAnswer += text;
-									}
+						if (update.type === 'add') {
+							const chunk = update.chunk;
+							if (chunk.type === 'text') {
+								if (fullReasoning) {
+									process.stdout.write('\n</thinking>\n\n');
+									fullReasoning = '';
 								}
-								break;
-							default:
-								break;
+								process.stdout.write(chunk.text);
+								fullAnswer = chunk.text;
+							} else if (chunk.type === 'reasoning') {
+								process.stdout.write(`\n<thinking>\n${chunk.text}`);
+								fullReasoning = chunk.text;
+							} else if (chunk.type === 'tool') {
+								console.log(`\n[Tool: ${chunk.toolName}]`);
+							} else if (chunk.type === 'file') {
+								console.log(`\n[Reading: ${chunk.filePath}]`);
+							}
+						} else if (update.type === 'update') {
+							const chunks = getChunks();
+							const chunk = chunks.find((c) => c.id === update.id);
+							if (chunk?.type === 'text') {
+								process.stdout.write(chunk.text.slice(fullAnswer.length));
+								fullAnswer = chunk.text;
+							} else if (chunk?.type === 'reasoning') {
+								process.stdout.write(chunk.text.slice(fullReasoning.length));
+								fullReasoning = chunk.text;
+							}
 						}
 					})
 				)
 			);
 
 			console.log('\n');
+			const allEvents = getEvents();
 
 			// Save to thread database
 			const metadata = extractMetadataFromEvents(allEvents);

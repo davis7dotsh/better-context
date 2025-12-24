@@ -91,47 +91,33 @@ const App: Component = () => {
 			return;
 		}
 
-		// Add user message with InputState for syntax highlighting
 		appState.addMessage({
 			role: 'user',
 			content: appState.inputState()
 		});
-		// Add initial assistant message that will be updated during streaming
-		const repoLabel = validRepos.length === 1 ? 'repo' : 'repos';
-		appState.addMessage({ role: 'assistant', content: `Syncing ${repoLabel}...` });
+		appState.addMessage({
+			role: 'assistant',
+			content: { type: 'chunks', chunks: [] }
+		});
 		appState.setInputState([]);
 		appState.setIsLoading(true);
 		appState.setMode('loading');
 
-		let fullResponse = '';
-		let currentMessageId: string | null = null;
-
 		try {
-			await services.askQuestion(validRepos, parsed.question, (event) => {
-				if (
-					event.type === 'message.part.updated' &&
-					'part' in event.properties &&
-					event.properties.part?.type === 'text'
-				) {
-					const part = event.properties.part as { messageID?: string; text?: string };
-					const delta = (event.properties as { delta?: string }).delta ?? '';
-					if (currentMessageId === part.messageID) {
-						fullResponse += delta;
-					} else {
-						currentMessageId = part.messageID ?? null;
-						fullResponse += '\n\n' + (part.text ?? '');
-					}
-					if (fullResponse.startsWith('\n\n')) {
-						fullResponse = fullResponse.slice(2);
-					}
-					// Update the assistant message in the history directly
-					appState.updateLastAssistantMessage(fullResponse);
+			const finalChunks = await services.askQuestion(validRepos, parsed.question, (update) => {
+				if (update.type === 'add') {
+					appState.addChunkToLastAssistant(update.chunk);
+				} else {
+					appState.updateChunkInLastAssistant(update.id, update.chunk);
 				}
 			});
 
-			await copyToClipboard(fullResponse);
-
-			appState.addMessage({ role: 'system', content: 'Answer copied to clipboard!' });
+			const textChunks = finalChunks.filter((c) => c.type === 'text');
+			const fullResponse = textChunks.map((c) => c.text).join('\n\n');
+			if (fullResponse) {
+				await copyToClipboard(fullResponse);
+				appState.addMessage({ role: 'system', content: 'Answer copied to clipboard!' });
+			}
 		} catch (error) {
 			appState.addMessage({ role: 'system', content: `Error: ${error}` });
 		} finally {

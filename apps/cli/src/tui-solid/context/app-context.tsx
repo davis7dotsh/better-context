@@ -9,7 +9,10 @@ import {
 	type ParentProps
 } from 'solid-js';
 import type { Mode, Repo, Message, InputState } from '../types.ts';
+import type { BtcaChunk } from '../../core/index.ts';
 import { services } from '../services.ts';
+
+// TODO update the internal naming of "repo" to be "resource"
 
 export type { InputState };
 
@@ -35,6 +38,8 @@ type AppState = {
 	messageHistory: Accessor<Message[]>;
 	addMessage: (message: Message) => void;
 	updateLastAssistantMessage: (content: string) => void;
+	addChunkToLastAssistant: (chunk: BtcaChunk) => void;
+	updateChunkInLastAssistant: (id: string, updates: Partial<BtcaChunk>) => void;
 	clearMessages: () => void;
 
 	// Repos
@@ -181,7 +186,52 @@ export const AppProvider: Component<ParentProps> = (props) => {
 				for (let i = newHistory.length - 1; i >= 0; i--) {
 					const msg = newHistory[i];
 					if (msg && msg.role === 'assistant') {
-						newHistory[i] = { role: 'assistant', content };
+						newHistory[i] = { role: 'assistant', content: { type: 'text', content } };
+						break;
+					}
+				}
+				return newHistory;
+			});
+		},
+		addChunkToLastAssistant: (chunk: BtcaChunk) => {
+			setMessageHistory((prev) => {
+				const newHistory = [...prev];
+				for (let i = newHistory.length - 1; i >= 0; i--) {
+					const msg = newHistory[i];
+					if (msg && msg.role === 'assistant' && msg.content.type === 'chunks') {
+						newHistory[i] = {
+							role: 'assistant',
+							content: { type: 'chunks', chunks: [...msg.content.chunks, chunk] }
+						};
+						break;
+					}
+				}
+				return newHistory;
+			});
+		},
+		updateChunkInLastAssistant: (id: string, updates: Partial<BtcaChunk>) => {
+			setMessageHistory((prev) => {
+				const newHistory = [...prev];
+				for (let i = newHistory.length - 1; i >= 0; i--) {
+					const msg = newHistory[i];
+					if (msg && msg.role === 'assistant' && msg.content.type === 'chunks') {
+						const updatedChunks = msg.content.chunks.map((c): BtcaChunk => {
+							if (c.id !== id) return c;
+							if (c.type === 'text' && 'text' in updates) {
+								return { ...c, text: updates.text as string };
+							}
+							if (c.type === 'reasoning' && 'text' in updates) {
+								return { ...c, text: updates.text as string };
+							}
+							if (c.type === 'tool' && 'state' in updates) {
+								return { ...c, state: updates.state as 'pending' | 'running' | 'completed' };
+							}
+							return c;
+						});
+						newHistory[i] = {
+							role: 'assistant',
+							content: { type: 'chunks', chunks: updatedChunks }
+						};
 						break;
 					}
 				}

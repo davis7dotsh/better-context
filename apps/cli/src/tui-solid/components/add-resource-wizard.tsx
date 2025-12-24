@@ -7,10 +7,11 @@ import type { Repo } from '../types.ts';
 
 const STEP_INFO: Record<WizardStep, { title: string; hint: string; placeholder: string }> = {
 	name: {
-		title: 'Step 1/4: Repository Name',
-		hint: 'Enter a unique name for this repo (e.g., "react", "svelte-docs")',
-		placeholder: 'repo-name'
+		title: 'Step 1/4: Resource Name',
+		hint: 'Enter a unique name for this resource (e.g., "react", "svelteDocs")',
+		placeholder: 'resourceName'
 	},
+	// TODO: update this to have a prompt to pick local or repo
 	url: {
 		title: 'Step 2/4: Repository URL',
 		hint: 'Enter the GitHub repository URL',
@@ -33,7 +34,7 @@ const STEP_INFO: Record<WizardStep, { title: string; hint: string; placeholder: 
 	}
 };
 
-export const AddRepoWizard: Component = () => {
+export const AddResourceWizard: Component = () => {
 	const appState = useAppContext();
 
 	const [wizardInput, setWizardInput] = createSignal('');
