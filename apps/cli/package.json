@@ -37,7 +37,10 @@
 		"build": "bun run build:js && bun run build:targets",
 		"check": "tsgo --noEmit",
 		"prepare": "effect-language-service patch",
-		"dev": "bun run src/tui-solid/App.tsx"
+		"dev": "bun run src/tui-solid/App.tsx",
+		"db:generate": "drizzle-kit generate",
+		"db:sync": "bun run db:generate && bun scripts/sync-schema-sql.ts",
+		"db:studio": "drizzle-kit studio"
 	},
 	"devDependencies": {
 		"@btca/shared": "workspace:*",
@@ -50,15 +53,18 @@
 		"@effect/typeclass": "^0.38.0",
 		"@opencode-ai/sdk": "^1.0.182",
 		"@opentui/core": "^0.1.62",
-		"@types/bun": "latest",
-		"effect": "^3.19.13",
-		"typescript": "^5.9.3",
 		"@opentui/solid": "^0.1.62",
-		"solid-js": "^1.9.10"
+		"@types/bun": "latest",
+		"better-sqlite3": "^12.5.0",
+		"drizzle-kit": "^0.31.8",
+		"effect": "^3.19.13",
+		"solid-js": "^1.9.10",
+		"typescript": "^5.9.3"
 	},
 	"dependencies": {
 		"@shikijs/langs": "^3.20.0",
 		"@shikijs/themes": "^3.20.0",
+		"drizzle-orm": "^0.45.1",
 		"marked": "^17.0.1",
 		"shiki": "^3.20.0"
 	}

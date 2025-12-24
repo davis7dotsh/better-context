@@ -2,9 +2,14 @@ import { Command, Options } from '@effect/cli';
 import { BunContext } from '@effect/platform-bun';
 import { Effect, Stream } from 'effect';
 import * as readline from 'readline';
-import { initializeCoreServices, getResourceInfos } from '../core/index.ts';
+import {
+	initializeCoreServices,
+	getResourceInfos,
+	extractMetadataFromEvents
+} from '../core/index.ts';
 import type { ResourceDefinition, GitResource, LocalResource } from '../core/resource/types.ts';
 import { isGitResource } from '../core/resource/types.ts';
+import type { OcEvent } from '../core/agent/types.ts';
 
 declare const __VERSION__: string;
 const VERSION: string = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '0.0.0-dev';
@@ -152,6 +157,9 @@ const askCommand = Command.make(
 			const resourceInfos = yield* getResourceInfos(services.resources, resourceNames);
 			const collection = yield* services.collections.ensure(resourceNames, { quiet: false });
 
+			// Get model config for saving
+			const modelConfig = yield* services.config.getModel();
+
 			// Ask the question
 			const eventStream = yield* services.agent.ask({
 				collection,
@@ -160,18 +168,27 @@ const askCommand = Command.make(
 			});
 
 			let currentMessageId: string | null = null;
+			let fullAnswer = '';
+			const allEvents: OcEvent[] = [];
+			const startTime = Date.now();
 
 			yield* eventStream.pipe(
 				Stream.runForEach((event) =>
 					Effect.sync(() => {
+						allEvents.push(event);
+
 						switch (event.type) {
 							case 'message.part.updated':
 								if (event.properties.part.type === 'text') {
+									const delta = event.properties.delta ?? '';
 									if (currentMessageId === event.properties.part.messageID) {
-										process.stdout.write(event.properties.delta ?? '');
+										process.stdout.write(delta);
+										fullAnswer += delta;
 									} else {
 										currentMessageId = event.properties.part.messageID;
-										process.stdout.write('\n\n' + event.properties.part.text);
+										const text = event.properties.part.text;
+										process.stdout.write('\n\n' + text);
+										fullAnswer += text;
 									}
 								}
 								break;
@@ -183,6 +200,19 @@ const askCommand = Command.make(
 			);
 
 			console.log('\n');
+
+			// Save to thread database
+			const metadata = extractMetadataFromEvents(allEvents);
+			metadata.durationMs = Date.now() - startTime;
+
+			yield* services.threads.createWithQuestion({
+				resources: resourceNames,
+				provider: modelConfig.provider,
+				model: modelConfig.model,
+				prompt: parsed.query,
+				answer: fullAnswer,
+				metadata
+			});
 		}).pipe(
 			Effect.catchTags({
 				InvalidProviderError: (e) =>
