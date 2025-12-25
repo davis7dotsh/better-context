@@ -9,8 +9,21 @@ export const RemoveRepoPrompt: Component = () => {
 
 	const [selectedIndex, setSelectedIndex] = createSignal(0);
 	const [filterText, setFilterText] = createSignal('');
+	const [removeRepoName, setRemoveRepoName] = createSignal('');
 
 	const maxVisible = 8;
+
+	useKeyboard((key) => {
+		if (key.name === 'c' && key.ctrl) {
+			const mode = appState.mode();
+			if (mode !== 'remove-repo') return;
+			if (removeRepoName().length === 0) {
+				appState.setMode('chat');
+			} else {
+				setRemoveRepoName('');
+			}
+		}
+	});
 
 	const filteredRepos = createMemo(() => {
 		const repos = appState.repos();
@@ -37,7 +50,7 @@ export const RemoveRepoPrompt: Component = () => {
 	});
 
 	const handleRemoveRepo = async () => {
-		const repoName = appState.removeRepoName();
+		const repoName = removeRepoName();
 		if (!repoName) return;
 
 		try {
@@ -48,28 +61,28 @@ export const RemoveRepoPrompt: Component = () => {
 			appState.addMessage({ role: 'system', content: `Error: ${error}` });
 		} finally {
 			appState.setMode('chat');
-			appState.setRemoveRepoName('');
+			setRemoveRepoName('');
 			setFilterText('');
 		}
 	};
 
 	const cancelMode = () => {
 		appState.setMode('chat');
-		appState.setRemoveRepoName('');
+		setRemoveRepoName('');
 		setFilterText('');
 	};
 
 	const selectRepo = () => {
 		const selectedRepo = filteredRepos()[selectedIndex()];
 		if (selectedRepo) {
-			appState.setRemoveRepoName(selectedRepo.name);
+			setRemoveRepoName(selectedRepo.name);
 		}
 	};
 
 	useKeyboard((key) => {
 		if (key.name === 'escape') {
 			cancelMode();
-		} else if (appState.removeRepoName()) {
+		} else if (removeRepoName()) {
 			if (key.name === 'y' || key.raw === 'Y') {
 				handleRemoveRepo();
 			} else if (key.name === 'n' || key.raw === 'N') {
@@ -108,7 +121,7 @@ export const RemoveRepoPrompt: Component = () => {
 
 	return (
 		<Show
-			when={appState.removeRepoName()}
+			when={removeRepoName()}
 			fallback={
 				<box
 					style={{
@@ -166,7 +179,7 @@ export const RemoveRepoPrompt: Component = () => {
 				<text content="" style={{ height: 1 }} />
 				<text fg={colors.text}>
 					{`Are you sure you want to remove "`}
-					<span style={{ fg: colors.accent }}>{appState.removeRepoName()}</span>
+					<span style={{ fg: colors.accent }}>{removeRepoName()}</span>
 					{`" from your configuration?`}
 				</text>
 				<text content="" style={{ height: 1 }} />

@@ -1,13 +1,15 @@
 import { BunContext } from '@effect/platform-bun';
-import { Effect, Layer, ManagedRuntime, Stream } from 'effect';
+import { Effect, ManagedRuntime, Stream } from 'effect';
 import {
 	initializeCoreServices,
 	getResourceInfos,
+	streamToChunks,
 	type CoreServices,
-	type SessionState
+	type SessionState,
+	type ChunkUpdate,
+	type BtcaChunk
 } from '../core/index.ts';
 import { isGitResource, type GitResource } from '../core/resource/types.ts';
-import type { Event as OcEvent } from '@opencode-ai/sdk';
 import type { Repo } from './types.ts';
 
 // Create a managed runtime with BunContext
@@ -138,13 +140,15 @@ export const services = {
 	askInSession: async (
 		session: SessionState,
 		question: string,
-		onEvent: (event: OcEvent) => void
-	): Promise<void> => {
+		onChunkUpdate: (update: ChunkUpdate) => void
+	): Promise<BtcaChunk[]> => {
 		const core = await getServices();
-		await Effect.runPromise(
+		return Effect.runPromise(
 			Effect.gen(function* () {
-				const stream = yield* core.agent.askInSession({ session, question });
-				yield* Stream.runForEach(stream, (event) => Effect.sync(() => onEvent(event)));
+				const eventStream = yield* core.agent.askInSession({ session, question });
+				const { stream: chunkStream, getChunks } = streamToChunks(eventStream);
+				yield* Stream.runForEach(chunkStream, (update) => Effect.sync(() => onChunkUpdate(update)));
+				return getChunks();
 			})
 		);
 	},
@@ -167,19 +171,21 @@ export const services = {
 	askQuestion: async (
 		resourceNames: string[],
 		question: string,
-		onEvent: (event: OcEvent) => void
-	): Promise<void> => {
+		onChunkUpdate: (update: ChunkUpdate) => void
+	): Promise<BtcaChunk[]> => {
 		const core = await getServices();
-		await Effect.runPromise(
+		return Effect.runPromise(
 			Effect.gen(function* () {
 				const resourceInfos = yield* getResourceInfos(core.resources, resourceNames);
 				const collection = yield* core.collections.ensure(resourceNames, { quiet: true });
-				const stream = yield* core.agent.ask({
+				const eventStream = yield* core.agent.ask({
 					collection,
 					resources: resourceInfos,
 					question
 				});
-				yield* Stream.runForEach(stream, (event) => Effect.sync(() => onEvent(event)));
+				const { stream: chunkStream, getChunks } = streamToChunks(eventStream);
+				yield* Stream.runForEach(chunkStream, (update) => Effect.sync(() => onChunkUpdate(update)));
+				return getChunks();
 			}).pipe(Effect.provide(BunContext.layer))
 		);
 	},
@@ -190,10 +196,9 @@ export const services = {
 	askQuestionLegacy: async (
 		tech: string,
 		question: string,
-		onEvent: (event: OcEvent) => void
-	): Promise<void> => {
-		// Just delegate to askQuestion with single resource
-		await services.askQuestion([tech], question, onEvent);
+		onChunkUpdate: (update: ChunkUpdate) => void
+	): Promise<BtcaChunk[]> => {
+		return services.askQuestion([tech], question, onChunkUpdate);
 	}
 };
 

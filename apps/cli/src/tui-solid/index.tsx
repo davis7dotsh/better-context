@@ -7,7 +7,7 @@ import { Header } from './components/header.tsx';
 import { RepoMentionPalette } from './components/repo-mention-palette.tsx';
 import { useAppContext } from './context/app-context.tsx';
 import { CommandPalette } from './components/command-palette.tsx';
-import { AddRepoWizard } from './components/add-repo-wizard.tsx';
+import { AddResourceWizard } from './components/add-resource-wizard.tsx';
 import { RemoveRepoPrompt } from './components/remove-repo-prompt.tsx';
 import { ModelConfig } from './components/model-config.tsx';
 import { BlessedModelSelect } from './components/blessed-model-select.tsx';
@@ -40,7 +40,7 @@ export const MainUi: Component<{
 
 			{/* Wizard Modals */}
 			<Show when={appState.mode() === 'add-repo'}>
-				<AddRepoWizard />
+				<AddResourceWizard />
 			</Show>
 			<Show when={appState.mode() === 'remove-repo'}>
 				<RemoveRepoPrompt />

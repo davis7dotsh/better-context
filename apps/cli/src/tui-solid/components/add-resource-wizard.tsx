@@ -1,4 +1,4 @@
-import { Show, type Component } from 'solid-js';
+import { createSignal, Show, type Component } from 'solid-js';
 import { colors } from '../theme.ts';
 import { useKeyboard, usePaste } from '@opentui/solid';
 import { useAppContext, type WizardStep } from '../context/app-context.tsx';
@@ -7,10 +7,11 @@ import type { Repo } from '../types.ts';
 
 const STEP_INFO: Record<WizardStep, { title: string; hint: string; placeholder: string }> = {
 	name: {
-		title: 'Step 1/4: Repository Name',
-		hint: 'Enter a unique name for this repo (e.g., "react", "svelte-docs")',
-		placeholder: 'repo-name'
+		title: 'Step 1/4: Resource Name',
+		hint: 'Enter a unique name for this resource (e.g., "react", "svelteDocs")',
+		placeholder: 'resourceName'
 	},
+	// TODO: update this to have a prompt to pick local or repo
 	url: {
 		title: 'Step 2/4: Repository URL',
 		hint: 'Enter the GitHub repository URL',
@@ -33,33 +34,46 @@ const STEP_INFO: Record<WizardStep, { title: string; hint: string; placeholder: 
 	}
 };
 
-export const AddRepoWizard: Component = () => {
+export const AddResourceWizard: Component = () => {
 	const appState = useAppContext();
+
+	const [wizardInput, setWizardInput] = createSignal('');
 
 	const info = () => STEP_INFO[appState.wizardStep()];
 
+	useKeyboard((key) => {
+		if (key.name === 'c' && key.ctrl) {
+			const mode = appState.mode();
+			if (mode !== 'add-repo') return;
+			if (wizardInput().length === 0) {
+				appState.setMode('chat');
+			} else {
+				setWizardInput('');
+			}
+		}
+	});
 	usePaste(({ text }) => {
-		appState.setWizardInput(text);
+		setWizardInput(text);
 	});
 
 	const handleSubmit = async () => {
 		const step = appState.wizardStep();
-		const value = appState.wizardInput().trim();
+		const value = wizardInput().trim();
 
 		if (step === 'name') {
 			if (!value) return;
 			appState.setWizardValues({ ...appState.wizardValues(), name: value });
 			appState.setWizardStep('url');
-			appState.setWizardInput('');
+			setWizardInput('');
 		} else if (step === 'url') {
 			if (!value) return;
 			appState.setWizardValues({ ...appState.wizardValues(), url: value });
 			appState.setWizardStep('branch');
-			appState.setWizardInput('main');
+			setWizardInput('main');
 		} else if (step === 'branch') {
 			appState.setWizardValues({ ...appState.wizardValues(), branch: value || 'main' });
 			appState.setWizardStep('notes');
-			appState.setWizardInput('');
+			setWizardInput('');
 		} else if (step === 'notes') {
 			appState.setWizardValues({ ...appState.wizardValues(), notes: value });
 			appState.setWizardStep('confirm');
@@ -87,7 +101,7 @@ export const AddRepoWizard: Component = () => {
 	useKeyboard((key) => {
 		if (key.name === 'escape') {
 			appState.setMode('chat');
-			appState.setWizardInput('');
+			setWizardInput('');
 		} else if (key.name === 'return' && appState.wizardStep() === 'confirm') {
 			handleSubmit();
 		}
@@ -120,8 +134,8 @@ export const AddRepoWizard: Component = () => {
 							placeholder={info().placeholder}
 							placeholderColor={colors.textSubtle}
 							textColor={colors.text}
-							value={appState.wizardInput()}
-							onInput={appState.setWizardInput}
+							value={wizardInput()}
+							onInput={setWizardInput}
 							onSubmit={handleSubmit}
 							focused
 							style={{ width: '100%' }}

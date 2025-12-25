@@ -21,4 +21,10 @@ export interface AgentMetadata {
 	durationMs: number;
 }
 
+export type BtcaChunk =
+	| { type: 'tool'; id: string; toolName: string; state: 'pending' | 'running' | 'completed' }
+	| { type: 'text'; id: string; text: string }
+	| { type: 'reasoning'; id: string; text: string }
+	| { type: 'file'; id: string; filePath: string };
+
 export { type OcEvent };

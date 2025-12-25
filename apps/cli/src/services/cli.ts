@@ -2,7 +2,12 @@ import { Command, Options } from '@effect/cli';
 import { BunContext } from '@effect/platform-bun';
 import { Effect, Stream } from 'effect';
 import * as readline from 'readline';
-import { initializeCoreServices, getResourceInfos } from '../core/index.ts';
+import {
+	initializeCoreServices,
+	getResourceInfos,
+	extractMetadataFromEvents,
+	streamToChunks
+} from '../core/index.ts';
 import type { ResourceDefinition, GitResource, LocalResource } from '../core/resource/types.ts';
 import { isGitResource } from '../core/resource/types.ts';
 
@@ -152,6 +157,9 @@ const askCommand = Command.make(
 			const resourceInfos = yield* getResourceInfos(services.resources, resourceNames);
 			const collection = yield* services.collections.ensure(resourceNames, { quiet: false });
 
+			// Get model config for saving
+			const modelConfig = yield* services.config.getModel();
+
 			// Ask the question
 			const eventStream = yield* services.agent.ask({
 				collection,
@@ -159,30 +167,61 @@ const askCommand = Command.make(
 				question: parsed.query
 			});
 
-			let currentMessageId: string | null = null;
+			let fullAnswer = '';
+			let fullReasoning = '';
+			const startTime = Date.now();
+			const { stream: chunkStream, getChunks, getEvents } = streamToChunks(eventStream);
 
-			yield* eventStream.pipe(
-				Stream.runForEach((event) =>
+			yield* chunkStream.pipe(
+				Stream.runForEach((update) =>
 					Effect.sync(() => {
-						switch (event.type) {
-							case 'message.part.updated':
-								if (event.properties.part.type === 'text') {
-									if (currentMessageId === event.properties.part.messageID) {
-										process.stdout.write(event.properties.delta ?? '');
-									} else {
-										currentMessageId = event.properties.part.messageID;
-										process.stdout.write('\n\n' + event.properties.part.text);
-									}
+						if (update.type === 'add') {
+							const chunk = update.chunk;
+							if (chunk.type === 'text') {
+								if (fullReasoning) {
+									process.stdout.write('\n</thinking>\n\n');
+									fullReasoning = '';
 								}
-								break;
-							default:
-								break;
+								process.stdout.write(chunk.text);
+								fullAnswer = chunk.text;
+							} else if (chunk.type === 'reasoning') {
+								process.stdout.write(`\n<thinking>\n${chunk.text}`);
+								fullReasoning = chunk.text;
+							} else if (chunk.type === 'tool') {
+								console.log(`\n[Tool: ${chunk.toolName}]`);
+							} else if (chunk.type === 'file') {
+								console.log(`\n[Reading: ${chunk.filePath}]`);
+							}
+						} else if (update.type === 'update') {
+							const chunks = getChunks();
+							const chunk = chunks.find((c) => c.id === update.id);
+							if (chunk?.type === 'text') {
+								process.stdout.write(chunk.text.slice(fullAnswer.length));
+								fullAnswer = chunk.text;
+							} else if (chunk?.type === 'reasoning') {
+								process.stdout.write(chunk.text.slice(fullReasoning.length));
+								fullReasoning = chunk.text;
+							}
 						}
 					})
 				)
 			);
 
 			console.log('\n');
+			const allEvents = getEvents();
+
+			// Save to thread database
+			const metadata = extractMetadataFromEvents(allEvents);
+			metadata.durationMs = Date.now() - startTime;
+
+			yield* services.threads.createWithQuestion({
+				resources: resourceNames,
+				provider: modelConfig.provider,
+				model: modelConfig.model,
+				prompt: parsed.query,
+				answer: fullAnswer,
+				metadata
+			});
 		}).pipe(
 			Effect.catchTags({
 				InvalidProviderError: (e) =>
