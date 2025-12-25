@@ -198,7 +198,7 @@ render(
 		</AppWrapper>
 	),
 	{
-		targetFps: 60,
+		targetFps: 30,
 		consoleOptions: {
 			position: ConsolePosition.BOTTOM,
 			sizePercent: 20,
