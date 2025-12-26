@@ -1,0 +1,64 @@
+---
+description: Use btca to fetch up-to-date answers about external libraries/frameworks by searching their official repos locally (source-first, no web browsing).
+alwaysApply: true
+---
+# better-context (btca)
+
+btca is a Bun-powered CLI for getting **up-to-date** answers about libraries/frameworks by **cloning/pulling their repositories locally** and querying the code/docs (via OpenCode).  
+
+## When to use btca
+Use btca when the user asks about an **external technology** (not this repo), for example:
+- How a library/framework works internally
+- Exact API behavior, defaults, edge cases, version-specific changes
+- “What does the source/docs say?” questions that must be current
+
+## How to use btca (workflow)
+1) Pick the correct `tech` (repo name)
+- If unsure what’s configured: `btca config repos list`
+- If missing: add it with `btca config repos add -n react -u https://github.com/facebook/react -b main` (include `--notes` if the repo needs special handling/special notes)
+
+2) Ask a single, precise question (best default)
+- `btca ask -t <tech> -q '<question>'`
+- Add `--no-sync` if you want to skip pulling latest changes for speed
+
+## Commands (CLI)
+- `btca`
+  - Launch the built-in interactive TUI (multi-repo).
+- `btca --help`
+  - Show help.
+- `btca --version` / `btca -v`
+  - Print version.
+
+- `btca ask -t <tech> -q '<question>' [--no-sync|-n]`
+  - Ask one question and stream the answer.
+
+- `btca chat -t <tech>`
+  - Spawn the OpenCode TUI inside the selected repo.
+
+- `btca serve [-p|--port <port>]`
+  - Start an HTTP server exposing `POST /question`. Do this only if btca is not responding!
+
+- `btca config`
+  - Print config file path + available config commands.
+
+- `btca config model`
+  - Show the current provider/model.
+- `btca config model -p <provider> -m <model>`
+  - Set provider + model (both required together).
+
+- `btca config repos list`
+  - List configured repos.
+- `btca config repos add -n <name> -u <url> [-b <branch>] [--notes '<specialNotes>']`
+  - Add a repo to the config.
+- `btca config repos remove -n <name>`
+  - Remove a repo from the config (with confirmation).
+- `btca config repos clear`
+  - Delete all locally downloaded repos under `reposDirectory` (with confirmation).
+
+## Example (recommended pattern)
+Ask btca to answer from the repo and cite where it found the info:
+- `btca ask -t svelte -q 'How do stores work in Svelte 5?'`
+
+HTTP example (if needed):
+- `btca serve` start the server locally.
+- `curl -sS -X POST http://localhost:8080/question -H 'content-type: application/json' -d '{"tech":"svelte","question":"How do stores work in Svelte 5?"}'`

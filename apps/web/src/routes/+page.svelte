@@ -4,6 +4,7 @@
 	import { getThemeStore } from '$lib/stores/ThemeStore.svelte';
 
 	const INSTALL_CMD = `bun add -g btca opencode-ai && btca`;
+	const Cursor_CMD = `curl "https://btca.dev/rules?rule=better_context" -o .cursor/rules/better_context.mdc`;
 
 	const ASK_CMD = `btca ask -t svelte -q "How do stores work in Svelte 5?"`;
 	const CHAT_CMD = `btca chat -t svelte`;
@@ -59,33 +60,62 @@
 		</div>
 	</div>
 
-	<section id="install" class="scroll-mt-28">
-		<h2 class="text-xl font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
-			Install
-		</h2>
-		<p class="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-			Install globally with Bun, then run <code
-				class="rounded bg-neutral-900/5 px-1.5 py-1 text-xs dark:bg-white/10">btca --help</code
-			>.
-		</p>
-		<div
-			class="relative mt-4 min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white/70 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/30 p-4 h-20 flex flex-row items-center justify-between"
-		>
-			<div class="min-w-0 flex-1 overflow-x-auto">
-				{#if shikiStore.highlighter}
-					{@html shikiStore.highlighter.codeToHtml(INSTALL_CMD, {
-						theme: shikiTheme,
-						lang: 'bash',
-						rootStyle: 'background-color: transparent; padding: 0; margin: 0; height: 100%;'
-					})}
-				{:else}
-					<pre
-						class="m-0 h-full whitespace-pre p-0 leading-relaxed text-neutral-900 dark:text-neutral-50"><code
-							>{INSTALL_CMD}</code
-						></pre>
-				{/if}
+	<section id="install" class="scroll-mt-28 grid gap-4 md:grid-cols-2">
+		<div>
+			<h2 class="text-xl font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
+				Install
+			</h2>
+			<p class="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+				Install globally with Bun, then run <code
+					class="rounded bg-neutral-900/5 px-1.5 py-1 text-xs dark:bg-white/10">btca --help</code
+				>.
+			</p>
+			<div
+				class="relative mt-4 min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white/70 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/30 p-4 h-20 flex flex-row items-center justify-between"
+			>
+				<div class="min-w-0 flex-1 overflow-x-auto">
+					{#if shikiStore.highlighter}
+						{@html shikiStore.highlighter.codeToHtml(INSTALL_CMD, {
+							theme: shikiTheme,
+							lang: 'bash',
+							rootStyle: 'background-color: transparent; padding: 0; margin: 0; height: 100%;'
+						})}
+					{:else}
+						<pre
+							class="m-0 h-full whitespace-pre p-0 leading-relaxed text-neutral-900 dark:text-neutral-50"><code
+								>{INSTALL_CMD}</code
+							></pre>
+					{/if}
+				</div>
+				<CopyButton text={INSTALL_CMD} label="Copy install command" />
 			</div>
-			<CopyButton text={INSTALL_CMD} label="Copy install command" />
+		</div>
+		<div>
+			<h2 class="text-xl font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
+				Cursor rule setup
+			</h2>
+			<p class="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+				Run this command in your terminal from your project's root directory.
+			</p>
+			<div
+				class="relative mt-4 min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white/70 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/30 p-4 h-20 flex flex-row items-center justify-between"
+			>
+				<div class="min-w-0 flex-1 overflow-x-auto">
+					{#if shikiStore.highlighter}
+						{@html shikiStore.highlighter.codeToHtml(Cursor_CMD, {
+							theme: shikiTheme,
+							lang: 'bash',
+							rootStyle: 'background-color: transparent; padding: 0; margin: 0; height: 100%;'
+						})}
+					{:else}
+						<pre
+							class="m-0 h-full whitespace-pre p-0 leading-relaxed text-neutral-900 dark:text-neutral-50"><code
+								>{Cursor_CMD}</code
+							></pre>
+					{/if}
+				</div>
+				<CopyButton text={Cursor_CMD} label="Copy Cursor rule command" />
+			</div>
 		</div>
 	</section>
 

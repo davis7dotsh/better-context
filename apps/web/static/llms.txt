@@ -1,0 +1,115 @@
+# btca (Better Context)
+
+> A Bun-powered CLI that answers questions about libraries/frameworks by cloning their repositories locally and querying them with OpenCode (source-first, no web browsing).
+
+`btca` is designed for “what does the code/docs actually do?” questions: it keeps answers up to date by reading the real repository you configure as a *tech*.
+
+It ships:
+- A CLI (built with Effect + Bun)
+- An interactive terminal UI (TUI) for multi-repo Q&A
+- An optional HTTP server mode
+- This docs website (`btca.dev`)
+
+## What btca can do
+
+- Ask a single question about a configured tech repo and stream the answer
+- Launch a built-in TUI where you can add/remove repos and ask questions via `@repo` mentions
+- Spawn the upstream OpenCode TUI scoped to a single repo
+- Expose a simple HTTP API (`POST /question`)
+- Manage local config (repos + model/provider)
+
+## Quickstart
+
+- Install (recommended):
+  - `bun add -g btca opencode-ai`
+- Ask a question:
+  - `btca ask -t svelte -q 'How do stores work in Svelte 5?'`
+- Run the interactive TUI:
+  - `btca`
+- Print config path:
+  - `btca config`
+
+## Command reference (CLI)
+
+- `btca` (no args): launch the built-in interactive TUI.
+- `btca --help`: show help.
+- `btca --version` / `btca -v`: print version.
+
+- `btca ask -t <tech> -q '<question>' [--no-sync|-n]`
+  - `--no-sync`: skip `git pull` when the repo already exists locally.
+
+- `btca chat -t <tech>`
+  - Spawns the `opencode` TUI inside the selected repo, using your configured provider/model.
+
+- `btca serve [-p|--port <port>]`
+  - Starts an HTTP server (default: `8080`).
+  - `POST /question` with JSON `{ 'tech': '...', 'question': '...' }`
+  - Returns JSON `{ 'answer': '...' }`
+
+- `btca config`
+  - Prints the config file path and available subcommands.
+
+- `btca config model`
+  - Show current provider/model.
+- `btca config model -p <provider> -m <model>`
+  - Set provider/model (both must be provided together).
+
+- `btca config repos list`
+  - List configured repos.
+- `btca config repos add -n <name> -u <url> [-b <branch>] [--notes '<specialNotes>']`
+  - Add a repo (missing fields may be prompted interactively).
+- `btca config repos remove -n <name>`
+  - Remove a repo from config (with confirmation).
+- `btca config repos clear`
+  - Delete all locally cloned repos under `reposDirectory` (with confirmation).
+
+## Command reference (built-in TUI)
+
+In the TUI you typically:
+- Ask: `@reponame Your question here`
+- Use slash commands (via `/`):
+  - `/add` (repo wizard)
+  - `/remove` (remove repo from config)
+  - `/model` (pick a recommended model)
+  - `/custom` (set custom provider/model)
+  - `/clear` (clear chat history)
+
+The TUI streams the answer and copies it to your clipboard on completion.
+
+## Configuration (`~/.config/btca/btca.json`)
+
+On first run, btca creates a default config at `~/.config/btca/btca.json`.
+
+Key fields:
+- `reposDirectory`: where repos are cloned (default: `~/.local/share/btca/repos`)
+- `repos[]`: array of repos:
+  - `name`, `url`, `branch`
+  - `specialNotes` (optional): instructions to guide answering (e.g. “this is the docs repo”)
+  - `searchPath` (optional): limit search to a subdirectory inside the repo
+- `provider` + `model`: OpenCode provider/model IDs used for answers
+
+Defaults ship with these repos:
+- `svelte` → `sveltejs/svelte.dev` (docs site repo)
+- `tailwindcss` → `tailwindlabs/tailwindcss.com` (docs site repo)
+- `nextjs` → `vercel/next.js` (`canary` branch)
+
+Notes:
+- btca uses `git` to clone/pull repos locally.
+- Provider authentication is handled by OpenCode (e.g. `opencode auth`).
+
+## Documentation (btca.dev)
+
+- [Getting started](https://btca.dev/getting-started): install, defaults, config example
+- [Commands](https://btca.dev/commands): command list + examples
+- [Models](https://btca.dev/models): recommended models + provider setup links
+
+## Source code & repo layout
+
+- [GitHub repository](https://github.com/bmdavis419/better-context)
+- `apps/cli/`: btca CLI + TUI (Bun + Effect + OpenTUI)
+- `apps/web/`: btca.dev SvelteKit site (static)
+- `packages/shared/`: shared constants (e.g. 'blessed' model list)
+
+## Optional
+
+- [OpenCode providers](https://opencode.ai/docs/providers/): provider setup + authentication
